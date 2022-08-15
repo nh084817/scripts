@@ -1,3 +1,4 @@
+--!strict
 -- over engineered "simple" esp, too lazy to document its features n shit
 
 local espConfiguration = {
@@ -5,33 +6,30 @@ local espConfiguration = {
 	highlight_color = Color3.fromRGB(255, 255, 255),
 	highlight_distance = 30,
 	ignore_self = true,
-	refresh_key = Enum.KeyCode.F1,
+	keybinds = {
+		refresh_key = Enum.KeyCode.F1
+	},
 	show_display_names = false,
-	team_color = true
+	show_team_color = true,
+	smoothing_factor = 1.5
 }
 
-local connections, drawlist = {}, {}
+local connections, drawlist, held = {}, {}, {}
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local UIS = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
-
 local Camera = workspace.CurrentCamera
 
-local debugger = true
+local debugger = false
 if not debugger then
-	print = function()
-
-	end
-
-	warn = function()
-
-	end
+	print = function() end
+	warn = function() end
 end
 
-local proxy = {}
+local proxy = table.clone(espConfiguration)
 local genv = setmetatable(getgenv(), {
 	__index = function(_, index)
 		--print("__index", index)
@@ -49,11 +47,13 @@ local genv = setmetatable(getgenv(), {
 				else
 					bindPlayer(LocalPlayer)
 				end
-			elseif index == "team_color" then
+			elseif index == "show_team_color" then
 				warn(value and "CASE_1A" or "CASE_1B")
-				modifyAllWithFunction(function(playerName, drawUi)
+				getDrawListAndRun(function(playerName, drawUi)
 					local Player = Players:FindFirstChild(playerName)
-					drawUi.Color = (value and Player.Team) and Player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
+					if Player and drawUi then
+						drawUi.Color = (value and Player.Team) and Player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
+					end
 				end)
 			end
 		end
@@ -62,7 +62,7 @@ local genv = setmetatable(getgenv(), {
 
 local errorHandle do 
 	errorHandle = function(err)
-		modifyAllWithFunction(function(playerName, drawUi)
+		getDrawListAndRun(function(playerName, drawUi)
 			if drawlist[playerName] then
 				drawUi:Remove()
 				drawlist[playerName] = nil
@@ -74,7 +74,7 @@ local errorHandle do
 	end
 end
 
-modifyAllWithFunction = function(func)
+getDrawListAndRun = function(func)
 	for playerName, drawUi in pairs(drawlist) do
 		func(playerName, drawUi)
 	end
@@ -88,11 +88,13 @@ bindPlayer = function(player)
 			local drawUi = Drawing.new("Text")
 			drawUi.Font = 2
 			drawUi.Size = 12
-			drawUi.Color = (genv.team_color and player.Team) and player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
+			drawUi.Color = (genv.show_team_color and player.Team) and player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
 			drawUi.Outline = true
 			drawUi.Center = true
 
 			drawlist[player.Name] = drawUi
+
+			return drawUi
 		end
 	end
 
@@ -108,13 +110,13 @@ bindPlayer = function(player)
 
 	table.insert(connections[player.Name], player:GetPropertyChangedSignal("Team"):Connect(function()
 		if drawlist[player.Name] then
-			drawlist[player.Name].Color = (genv.team_color and player.Team) and player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
+			drawlist[player.Name].Color = (genv.show_team_color and player.Team) and player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
 		end
 	end))
 end
 
 unbindPlayer = function(player)
-	local t = tick()
+	local t = os.clock()
 
 	if drawlist[player.Name] then
 		drawlist[player.Name]:Remove()
@@ -128,7 +130,7 @@ unbindPlayer = function(player)
 		connections[player.Name] = nil
 	end
 
-	warn("unbounded", player.Name, tick() - t)
+	warn("unbinding " .. player.Name .. " took", os.clock() - t)
 end
 
 for _, player in pairs(Players:GetPlayers()) do
@@ -140,7 +142,7 @@ Players.PlayerRemoving:Connect(unbindPlayer)
 
 local function renderDrawlist()
 	return RunService.RenderStepped:Connect(function()
-		modifyAllWithFunction(function(playerName, drawUi)
+		getDrawListAndRun(function(playerName, drawUi)
 			local Player = Players:FindFirstChild(playerName)
 			if Player and Player.Character and Player.Character.PrimaryPart then
 				local root = Player.Character.PrimaryPart
@@ -153,7 +155,8 @@ local function renderDrawlist()
 					drawUi.Position = Vector2.new(vector.X, vector.Y)
 
 					local dist = LocalPlayer:DistanceFromCharacter(root.CFrame.Position) * 0.28
-					local hovering = (UIS:GetMouseLocation() - drawUi.Position).Magnitude <= genv.highlight_distance
+					local diff = UIS:GetMouseLocation() - drawUi.Position
+					local hovering = diff.Magnitude <= genv.highlight_distance
 
 					drawUi.Text = string.format(
 						"%s %d%% %sm",
@@ -163,9 +166,8 @@ local function renderDrawlist()
 					)
 
 					if genv.highlight then
-						drawUi.Color = hovering and genv.highlight_color or (genv.team_color and Player.Team) and Player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
-						if hovering then		
-						else
+						drawUi.Color = hovering and genv.highlight_color or (genv.show_team_color and Player.Team) and Player.TeamColor.Color or Color3.fromRGB(127, 127, 127)
+						if not hovering then
 							drawUi.Text = string.format("%sm", math.round(dist))
 						end
 					elseif genv.show_display_names then
@@ -188,8 +190,25 @@ renderDrawlist()
 
 UIS.InputBegan:Connect(function(inputobj, gp)
 	if not gp then
-		if inputobj.KeyCode == genv.refresh_key then
-			print(genv.refresh_key)
+		for k, v in pairs(genv.keybinds) do
+			if inputobj.UserInputType == v or inputobj.KeyCode == v then
+				held[v] = true
+			end
+		end
+	end
+end)
+
+UIS.InputEnded:Connect(function(inputobj, gp)
+	if not gp then
+		for k, v in pairs(genv.keybinds) do
+			if inputobj.UserInputType == v or inputobj.KeyCode == v then
+				held[v] = false
+				warn(v)
+			end
+		end
+
+		if inputobj.KeyCode == genv.keybinds.refresh_key then
+			local t = os.clock()
 			for _, player in pairs(Players:GetPlayers()) do
 				unbindPlayer(player)
 			end
@@ -199,10 +218,8 @@ UIS.InputBegan:Connect(function(inputobj, gp)
 			for _, player in pairs(Players:GetPlayers()) do
 				bindPlayer(player)
 			end
+
+			warn("refreshing took", os.clock() - t)
 		end
 	end
 end)
-
-for k, v in pairs(espConfiguration) do
-	genv[k] = v
-end
