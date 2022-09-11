@@ -14,7 +14,7 @@ local espConfiguration = {
 	smoothing_factor = 1.5
 }
 
-local connections, drawlist, held = {}, {}, {}
+local connections, drawlist = {}, {}
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -185,30 +185,13 @@ local function renderDrawlist()
 	--return conn
 end
 
-renderDrawlist()
---xpcall(renderDrawlist, errorHandle)
-
-UIS.InputBegan:Connect(function(inputobj, gp)
-	if not gp then
-		for k, v in pairs(genv.keybinds) do
-			if inputobj.UserInputType == v or inputobj.KeyCode == v then
-				held[v] = true
-			end
-		end
-	end
-end)
+xpcall(renderDrawlist, errorHandle)
 
 UIS.InputEnded:Connect(function(inputobj, gp)
 	if not gp then
-		for k, v in pairs(genv.keybinds) do
-			if inputobj.UserInputType == v or inputobj.KeyCode == v then
-				held[v] = false
-				warn(v)
-			end
-		end
-
 		if inputobj.KeyCode == genv.keybinds.refresh_key then
 			local t = os.clock()
+			
 			for _, player in pairs(Players:GetPlayers()) do
 				unbindPlayer(player)
 			end
