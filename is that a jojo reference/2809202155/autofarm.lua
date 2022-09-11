@@ -113,16 +113,18 @@ pcall(function()
 				)
 				task.wait(1)
 			end
-            --[[
+
 			if LocalPlayer.PlayerGui:FindFirstChild("RollingItem") then
-                LocalPlayer.PlayerGui:FindFirstChild("RollingItem"):Destroy();
+				LocalPlayer.PlayerGui:FindFirstChild("RollingItem"):Destroy()
 			end
-            ]]
+
+			--[[
             for _, v in next, LocalPlayer.PlayerGui:GetChildren() do
                 if v.Name == "RollingItem" then
                     v.Enabled = false;
                 end
             end
+			]]
 
 			for _, v in next, itemFolder:GetChildren() do
 				for _, v2 in next, v:GetChildren() do
@@ -154,10 +156,11 @@ pcall(function()
 			pcall(function()
 				for _, v in next, LocalPlayer.Backpack:GetChildren() do
 					if
-						v:IsA("Tool") --[[and v ~= nil and v.Parent and v.Parent ~= nil]]
+						v:IsA("Tool")
+						--and v ~= nil and v.Parent and v.Parent ~= nil
 						and not table.find(blacklistedItems, v.Name)
 						and not table.find(valueItems, v.Name)
-						--and v.Name ~= "Gold Coin"
+						and v.Name ~= "Gold Coin"
 						and not string.find(v.Name, "Redeemed")
 					then
 						task.wait()
