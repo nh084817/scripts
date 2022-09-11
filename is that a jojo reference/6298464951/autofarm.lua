@@ -2,6 +2,8 @@
 
 repeat task.wait() until game:IsLoaded()
 
+task.wait(10)
+
 local genv = getgenv()
 genv.autoServerHop = true
 genv.instantPrompt = true
@@ -23,8 +25,8 @@ local function collect(item)
 				local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
 				if cf and prompt then
 					player.Character:PivotTo(CFrame.new(cf.Position + Vector3.new(0, player.Character.Humanoid.HipHeight, 0)))
-					--task.wait(0.2)
-					--fireproximityprompt(prompt)
+					task.wait(0.2)
+					fireproximityprompt(prompt)
 				end
 				--repeat task.wait() until not item or not item:IsDescendantOf(workspace) 
 			end
